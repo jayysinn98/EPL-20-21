@@ -1,0 +1,167 @@
+---
+title: "EPL Exploration"
+author: "Jasin Chow"
+date: "11/29/2021"
+output: html_document
+---
+
+# English Premier League Data Exploration, 2021
+
+Hello :) 
+
+First things first, a little introduction.
+
+My name is Jasin (pronounced as Jason with an 'i' instead of an 'o' :p). I have been an avid follower of football since I was 10. The rise of the use of Data Science in the sport is certainly intriguing, and being in the midst of pursuing a degree in Data Science, I hope to one day be able to work as a Data Scientist at a European football club.
+
+This little exploratory project makes use of 2 datasets : 
+1. Individual player stats from the COVID-hit 2020/2021 season
+2. All results since the Premier League's Inception
+
+# Setting up the environment
+```{r}
+player_stats_20_21 <- read.csv('EPL_20_21.csv')
+all_results <- read.csv('results.csv')
+library(dplyr)
+library(ggplot2)
+```
+
+# Player stats
+## Top starters
+Let's see if any outfield player managed to play all 38 games last season, which would be quite the feat given that pre-season was extremely rushed with the delayed end of 2019/2020 due to COVID putting a pause on all matches midway through the 19/20 season
+```{r}
+filter(player_stats_20_21, Matches == 38, Position != 'GK') %>% select(Name)
+```
+Here we can see the TWELVE players who achieved this feat, which is commendable.
+In particular, Liverpool's Robertson, West Ham's Souček, Spurs' Højbjerg, Leeds' Dallas and Ayling, Villa's Targett, Southampton's Ward-Prowse and Burnley's Westwood all STARTED the 38 matches as well!
+
+## Top Scorers
+I shall first do a simple arrangement of the players based on the number of goals scored.
+```{r}
+arrange(player_stats_20_21, desc(Goals)) %>%
+  select(Name, Goals) %>%
+  top_n(10, Goals)
+```
+Harry Kane leads the charts, followed by Mohamed Salah and Bruno Fernandes.
+Here, the appearance of Alex Lacazette in the top 10 is surprising, given how much backlash the Frenchman is getting from Arsenal supporters for his poor performances.
+Gundogan's goal scoring exploits last season were evident as well, as he, quite amazingly, became City's top scorer with 13 goals from midfield, even though goal scoring is not a trait we commonly associate with the German playmaker.
+
+## Top non-penalty scorers
+Now, most fans are used to seeing top scorers in seasons gone by. Personally, I find them to be a little uninformative, especially since they account for penalties. I am acutely aware of fans on social media calling players 'Penalty Merchants' i.e. players with more goals than their performances deserve due to penalty taking duties.
+Let's check the top 10 goalscorers excluding penalties
+```{r, label = 'test'}
+player_stats_20_21 <- mutate(player_stats_20_21, Non_penalty_Goals = (Goals - Penalty_Goals), .after = Goals) #permanently add non-penalty goals to the data
+arrange(player_stats_20_21, desc(Non_penalty_Goals)) %>% 
+  select(Name, Non_penalty_Goals) %>% 
+  top_n(10, Non_penalty_Goals)
+```
+
+So Kane and Salah still lead the way, with the most noticeable absentee from the previous table being Bruno Fernandes, who doesn't even make the top 10 for non-penalty goals scored. Perhaps the name 'Penandes' is warranted....
+
+
+## Top attackers
+In recent years, the popularity of the metric 'expected goals / xG' has risen exponentially. Goals are no longer the sole useful metric to judge attackers, as they may be putting away low quality chances which require excellent finishing. This is not always sustainable across an extended period of time, requiring the attacker to consistently be in top condition to put away poor chances. This could be used to identify 'one season wonders', where a player performs exceptionally within a season, but completely nosedives in the subsequent seasons. Some of these, in recent seasons, include : Papiss Cisse (Newcastle), Pavel Pogrebnyak (Reading).
+
+Expected goals take into account various factors when a shot has been placed : goalkeeper's position, shooting position, shooting body part, defender's position. These are then used to determine how likely, based on past data, a player should score given these factors when a shot has been taken.
+
+### Best attackers (Expected goals)
+Let's see the 20 players with the top expected goals for the season (xG * Matches)
+```{r}
+mutate(player_stats_20_21, expected_goals = (xG * Matches)) %>%
+  select(Name, Position, expected_goals, Goals) %>%
+  arrange(desc(expected_goals)) %>%
+  top_n(20, expected_goals)
+```
+
+From the top 20, we can make a couple of observations :
+1. As expected, the top 20 players in terms of xG are all forwards
+2. While some players' goalscoring numbers are similar to their xG numbers, such as Salah and Fernandes, there are also those with a relatively bigger disparity, such as Mane and Maupay.
+Naturally, I would want to see which players' had the greatest differences, both positive and negative, in terms of goals and expected goals.
+
+### Overperforming attackers
+```{r}
+mutate(player_stats_20_21, expected_goals = (xG * Matches), xG_diff = Goals - expected_goals) %>%
+  select(Name, Position, Goals,xG_diff) %>%
+  arrange(desc(xG_diff)) %>%
+  top_n(20, xG_diff)
+```
+
+Here we can see Son overperforming his expected goals by a staggering 6 goals, with no other player on more than 4.
+This goes to show how good the Korean's finishing is, but whether this overperformance is sustainable remains to be seen.
+There are a few defenders on this list, which is a testament to how big a threat these players are on set pieces.
+It is also of little surprise, personally, that Ward-Prowse features here, given that a majority of his goals are scored from free-kicks, all of which are taken from outside the penalty area and therefore have much lower expected goals.
+I also see that 3 West Ham defenders (Zouma, Diop, Ogbonna) feature, implying that set pieces played a major part in the Clarets' push for top 4 that season.
+### Underperforming attackers
+```{r}
+mutate(player_stats_20_21, expected_goals = (xG * Matches), xG_diff = expected_goals - Goals) %>%
+  select(Name, Position, Goals,xG_diff) %>%
+  arrange(desc(xG_diff)) %>%
+  top_n(20, xG_diff)
+```
+Wow. From this table we can see how much some players underperformed in terms of goals scored, with Fabio Silva of Wolves being the biggest culprit, having scored close to 9 goals less than he reasonably should have.
+Timo Werner also had his critics last season, and the data shows that it was justified. On that note, the top 10 already features 3 Chelsea forwards (Werner, Havertz and Abraham). This would probably go a long way to explaining why the London club had been actively searching for a top-class centre forward for the new season, and splashed 100m on Romelu Lukaku.
+Another notable inclusion is Neal Maupay of Brighton, who scored 7.18 less goals than expected. This is siginificant as Brighton underperformed the most in terms of points vs expected points (which are, of course, based on xG). We can see that a big part of this might be due to Maupay's finishing.
+
+## Top playmakers
+I shall repeat the analyses above on assists and expected assists (xA).
+```{r}
+select(player_stats_20_21,Name, Position, Assists) %>%
+  arrange(desc(Assists)) %>%
+  top_n(20, Assists)
+```
+Notice how Kane and Son feature again? This goes to show how crucial the duo were to Spurs last seasoon. On the other hand, the fact that they finished 7th last season also shows how poor the rest of the squad is, a far cry from the Pochettino team which finished 2nd in 2015/2016.
+The same could be said for Bruno Fernandes and Jamie Vardy.
+```{r}
+mutate(player_stats_20_21, expected_assists = (xA * Matches)) %>%
+  select(Name, Position, expected_assists, Assists) %>%
+  arrange(desc(expected_assists)) %>%
+  top_n(20, expected_assists)
+```
+Now when we include expected assists, something immediately stands out.
+Jahanbakhsh has over 11 expected assists but only ONE assist. This corroborates with my previous statement of Brighton being the biggest underperforming team, and Neal Maupay is probably culpable for a few of these chances which should have been put away.
+
+### Big gaps in assists?
+Next I will see where the biggest differences in expected and actual assists come from.
+```{r}
+mutate(player_stats_20_21, expected_assists = (xA * Matches), xA_diff = Assists - expected_assists) %>%
+  select(Name, Position, Assists,xA_diff) %>%
+  arrange(desc(xA_diff)) %>%
+  top_n(20, xA_diff)
+```
+We see that Kane has outperformed his expected assists by more than 6 goals. Previously we saw how Heung-min Son overperformed in the goals department, so this should come as no surprise.
+I also notice quite a few of the West Ham players featuring in this top 20, namely Lingard, Coufal, Antonio and Cresswell. It might be fair to say that the finishing of the entire team was above average, since only Lingard featured in the overperforming attackers chart. Cresswell's stats might be attributed to the defenders' outscoring their xG, as mentioned above, since he is their set piece taker.
+
+Now for the biggest negative differences...
+```{r}
+mutate(player_stats_20_21, expected_assists = (xA * Matches), xA_diff = expected_assists - Assists) %>%
+  select(Name, Position, Assists,xA_diff) %>%
+  arrange(desc(xA_diff)) %>%
+  top_n(20, xA_diff)
+```
+As expected, Jahanbakhsh comes out on top here.
+4 Chelsea players feature here (Mount, Barkley, Ziyech, Hudson-Odoi) which is no surprise given how many of the team's forwards we saw in the underperforming scorers' chart.
+Traore and Cavaleiro both play for Wolves, for whom Fabio Silva plays. I would assume their combined 9 'missing' assists can be largely attributed to the young Portugese forward.
+
+### Decisive passers
+One thing I thought would be interesting to explore is the number of passes made per xA for the players. I define this to be a measure how 'pass decisiveness'. Of course, this isn't the perfect metric since this stat might be affected by team style. 
+For example, a possession dominant team would most likely take more passes to break down the opposition, while the converse is true for counter attacking teams who look to get the ball from one end of the pitch to the other as quickly as possible.
+```{r}
+select(player_stats_20_21, Name, Passes_Attempted, Matches, xA, Assists) %>%
+  mutate(total_xA = Matches * xA, Passes_Per_xA =  Passes_Attempted/total_xA, Passes_Per_A = Passes_Attempted/Assists) %>%
+  select(Name, Assists, Passes_Per_xA, Passes_Per_A) %>%
+  arrange(Passes_Per_A) %>%
+  filter(Assists > 5)
+```
+For this analysis, I have only included players with more than 5 assists.
+Unsurprisingly, the top 4 are all forwards. These players tend to be less involved in overall buildup play, and their touches, and hence passes, tend to be in and around the opposition penalty area, so these are more likely to end up in goals. The exception here would probably be Harry Kane, who often drops deep to build up play as well, as we can see from his Passes Per xA, which is much higher than his Passes Per Assist, implying his low PPA is due to great finishing, as discussed earlier.
+It is also clear that most of the players in the top 10 are playing for counter attacking teams such as Leicester City, West Ham United and Aston Villa. Leeds' Bamford and Raphinha are also involved due to their high pressing style which leads to balls being won higher up the pitch and therefore decisive passes are easier to make.
+
+## Entertaining teams
+Let's take a step back and look at data on a team level now.
+As followers of the sport, fans' main form of entertainment is goals. I shall now see which teams were involved in the most number of goals. 
+```{r}
+player_stats_20_21 %>%
+  group_by(Club) %>%
+  summarize(goals_scored = sum(Goals)) %>%
+  arrange(desc(goals_scored))
+```
+Here we see Man City being, by far, the most prolific team in the league, averaging more than 2 goals scored a game. It is little wonder they won the title that year.
